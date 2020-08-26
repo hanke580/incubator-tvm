@@ -1197,6 +1197,15 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, int axes = 2,
   CHECK_GE(A->shape.size(), axes);
   CHECK_GE(B->shape.size(), axes);
 
+  // Here is the test part of transferring the primexpr to int
+  Array<PrimExpr> temp = Array<PrimExpr>(5, -1);
+  for(int i = 0; i < temp.size(); i++) {
+    temp.Set(i, i);
+  }
+  if(temp[3] == 2) {
+    std::printf("The output is right \n");
+  }
+
   Array<PrimExpr> output_shape(A->shape.begin(), A->shape.end() + (-axes));
   for (auto it = B->shape.begin() + axes; it != B->shape.end(); ++it) output_shape.push_back(*it);
 
