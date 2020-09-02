@@ -23,9 +23,6 @@
  */
 #ifndef TVM_TOPI_TRANSFORM_H_
 #define TVM_TOPI_TRANSFORM_H_
-#define NPY_MAXDIMS 16
-#define NPY_MAXARGS 16
-#define MAXAXIS 128
 
 #include <tvm/te/operation.h>
 #include <tvm/tir/data_layout.h>
@@ -1427,7 +1424,7 @@ inline int parse_output_subscripts(const char *subscripts, int length,
         << "in an input";
 
       /* Check that there is room in out_labels for this label. */
-      CHECK(ndim < NPY_MAXDIMS)
+      CHECK(ndim < 16)
         << "einstein sum subscripts string contains "
         << "too many subscripts in the output";
 
@@ -1442,7 +1439,7 @@ inline int parse_output_subscripts(const char *subscripts, int length,
         << "an ellipsis ('...') in the output";
 
       /* Check there is room in out_labels for broadcast dims. */
-      CHECK(ndim + ndim_broadcast <= NPY_MAXDIMS)
+      CHECK(ndim + ndim_broadcast <= 16)
         << "einstein sum subscripts string contains "
         << "too many subscripts in the output";
 
@@ -1468,12 +1465,12 @@ inline int parse_output_subscripts(const char *subscripts, int length,
   return ndim;
 }
 
-inline void get_combined_dims_view(const Tensor& op, int iop,
+inline void GetCombinedDimsView(const Tensor& op, int iop,
                                    char *labels,
                                    Array<PrimExpr> newshape,
                                    Array<PrimExpr> newstride) {
   int idim, ndim, icombine, combineoffset;
-  int icombinemap[NPY_MAXDIMS];
+  int icombinemap[16];
   int newdim;
 
   Array<PrimExpr> shape = op->shape;
@@ -1581,8 +1578,8 @@ inline int _count_substring(const std::string& str,
   return count;
 }
 
-inline std::bitset<MAXAXIS> str2set(const std::string& str) {
-  std::bitset<MAXAXIS> ret;
+inline std::bitset<128> str2set(const std::string& str) {
+  std::bitset<128> ret;
   for (const char& c : str) {
     ret.set(static_cast<int>(c));
   }
@@ -1607,7 +1604,7 @@ inline std::vector<std::string> _parse_einsum_input(
   const std::vector<Array<PrimExpr>>& operands) {
   const std::string einsum_symbols =
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  std::bitset<MAXAXIS> einsum_symbols_set;
+  std::bitset<128> einsum_symbols_set;
   for (const char& c : einsum_symbols) {
     einsum_symbols_set.set(c);
   }
@@ -1648,7 +1645,7 @@ inline std::vector<std::string> _parse_einsum_input(
                                                        c == '>';}),
                used.end());
 
-    std::bitset<MAXAXIS> used_set = str2set(used);
+    std::bitset<128> used_set = str2set(used);
     std::string ellipse_inds = "";
     for (const char& c : einsum_symbols) {
       if (!used_set.test(static_cast<int>(c))) {
@@ -1720,7 +1717,7 @@ inline std::vector<std::string> _parse_einsum_input(
       subscripts += "->" + output_sub;
     } else {
       // Special care for outputless ellipses
-      std::bitset<MAXAXIS> out_ellipse_set = str2set(out_ellipse);
+      std::bitset<128> out_ellipse_set = str2set(out_ellipse);
       std::string tmp_subscripts = subscripts, output_subscript = "";
       size_t len_tmp_subscripts = tmp_subscripts.length();
       std::sort(tmp_subscripts.begin(), tmp_subscripts.end());
@@ -1769,7 +1766,7 @@ inline std::vector<std::string> _parse_einsum_input(
   }
 
   // Make sure output subscripts are in the input
-  std::bitset<MAXAXIS> input_subscripts_set = str2set(ret[0]);
+  std::bitset<128> input_subscripts_set = str2set(ret[0]);
   for (const char& c : ret[1]) {
     CHECK(input_subscripts_set.test(c))
       << "Output character " << c
@@ -1784,8 +1781,8 @@ inline std::vector<std::string> _parse_einsum_input(
   return ret;
 }
 
-inline Array<PrimExpr> NumpyEinsumShape(std::string subscripts, 
-                                        std::vector<Array<PrimExpr>>& operands) {
+inline Array<PrimExpr> NumpyEinsumShape(const std::string subscripts, 
+                                        const std::vector<Array<PrimExpr>>& operands) {
   // Parsing
   std::vector<std::string> parsed_subscripts = _parse_einsum_input(subscripts, operands);
 
@@ -1794,7 +1791,7 @@ inline Array<PrimExpr> NumpyEinsumShape(std::string subscripts,
   size_t isize = input_list.size();
 
   // Get length of each unique dimension and ensure all dimensions are correct
-  int dimension_dict[MAXAXIS];
+  int dimension_dict[128];
   memset(dimension_dict, -1, sizeof(dimension_dict));
   for (size_t i = 0; i < isize; ++i) {
     const std::string& term = input_list[i];
@@ -1855,7 +1852,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
 
   /* Step 1: Parse the subscripts string into label_counts and op_labels */
   int iop, idim, min_label = 127, max_label = 0;
-  char label_counts[128], op_labels[NPY_MAXARGS][NPY_MAXDIMS];
+  char label_counts[128], op_labels[16][16];
   memset(label_counts, 0, sizeof(label_counts));
   for (iop = 0; iop < nop; ++iop) {
     int length = static_cast<int>(strcspn(subscripts, ",-"));
@@ -1904,7 +1901,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
    * using each label that appeared once, in alphabetical order.
    */
   int label, ndim_output;
-  char output_labels[NPY_MAXDIMS];
+  char output_labels[16];
   if (subscripts[0] == '\0') {
     /* If no output was specified, always broadcast left, as usual. */
     for (ndim_output = 0; ndim_output < ndim_broadcast; ++ndim_output) {
@@ -1912,7 +1909,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
     }
     for (label = min_label; label <= max_label; ++label) {
       if (label_counts[label] == 1) {
-        CHECK(ndim_output < NPY_MAXDIMS)
+        CHECK(ndim_output < 16)
           << "einstein sum subscript string has too many "
           << "distinct labels";
         output_labels[ndim_output++] = label;
@@ -1959,7 +1956,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
     if (combine) {
       Array<PrimExpr> tshape(static_cast<size_t>(ndim - combine), -1);
       Array<PrimExpr> tstride(static_cast<size_t>(ndim - combine), -1);
-      get_combined_dims_view(inputs[iop + back], iop, labels,
+      GetCombinedDimsView(inputs[iop + back], iop, labels,
                              tshape, tstride);
       opshape[iop] = tshape;
       opstride_true[iop] = tstride;
@@ -1980,7 +1977,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
   for (label = min_label; label <= max_label; ++label) {
     if (label_counts[label] > 0 &&
         memchr(output_labels, label, ndim_output) == nullptr) {
-      CHECK(ndim_iter < NPY_MAXDIMS)
+      CHECK(ndim_iter < 16)
         << "too many subscripts in einsum";
       iter_labels[ndim_iter++] = label;
     }
@@ -1999,8 +1996,8 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
   Array<PrimExpr> ostride_true = get_stride(oshape);
   Array<PrimExpr> reduceshape;
   std::vector<Array<PrimExpr>> remainshape(nop);
-  int op_axes_arrays[NPY_MAXARGS][NPY_MAXDIMS];
-  int *op_axes[NPY_MAXARGS];
+  int op_axes_arrays[16][16];
+  int *op_axes[16];
   for (iop = 0; iop < nop; ++iop) {
     op_axes[iop] = op_axes_arrays[iop];
     CHECK_GE(prepare_op_axes(opshape[iop].size(), iop, op_labels[iop],
