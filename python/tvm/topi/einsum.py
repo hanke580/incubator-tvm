@@ -19,7 +19,7 @@
 from . import cpp
 
 
-def einsum(subscripts, a_tuple):
+def einsum(subscripts, *operand):
     """Evaluates the Einstein summation convention on the operands.
 
     Parameters
@@ -41,6 +41,4 @@ def einsum(subscripts, a_tuple):
         The calculation based on the Einstein summation convention.
     """
 
-    if not isinstance(a_tuple, tuple):
-        a_tuple = (a_tuple,)
-    return cpp.einsum(subscripts, a_tuple)
+    return cpp.einsum(subscripts, operand)
